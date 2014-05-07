@@ -1,0 +1,12 @@
+<GuiXml>
+	<Controls>
+		<TopLevelControl name="IRY_Top">
+			<OnUpdate>
+				<!-- IRY_Update(self) -->
+			</OnUpdate>
+			<OnInitialized>
+				IRY_OnLoad(self)
+			</OnInitialized>
+		</TopLevelControl>
+	</Controls>
+</GuiXml>

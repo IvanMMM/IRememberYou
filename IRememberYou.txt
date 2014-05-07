@@ -1,0 +1,6 @@
+## Title: IRememberYou
+## APIVersion: 100003
+## SavedVariables: IRY_SavedVars
+
+IRememberYou.lua
+IRememberYou.xml
