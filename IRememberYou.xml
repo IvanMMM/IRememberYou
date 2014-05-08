@@ -4,9 +4,85 @@
 			<OnUpdate>
 				<!-- IRY_Update(self) -->
 			</OnUpdate>
-			<OnInitialized>
-				IRY_OnLoad(self)
-			</OnInitialized>
+			<Controls>
+				<Control name="IRY_Book" mouseEnabled="true" hidden="false">
+					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
+					<Dimensions x="1024" y="1024" />
+					<Controls>
+						<Texture name="$(parent)Bg" textureFile="esoui/art/lorelibrary/lorelibrary_paperbook.dds">
+							<AnchorFill/>
+						</Texture>
+						<Label name="$(parent)AddonTitle" font="ZoFontBookPaperTitle" text="I Remember You" color="000000">
+							<Anchor point="CENTER" relativePoint="LEFT" offsetX="300" offsetY="-340"/>
+						</Label>
+						<Label name="$(parent)SearchTitle" font="ZoFontBookPaperTitle" text="Search" color="000000">
+							<Anchor point="CENTER" relativePoint="RIGHT" offsetX="-300" offsetY="-340"/>
+						</Label>
+
+						<!-- taken from lorereader -->
+		                <Control name="$(parent)KeyStripMouseButtons">
+		                    <Dimensions x="60" y="38" />
+		                    <Controls>
+		                        <Texture name="$(parent)PreviousPage" mouseEnabled="true" textureFile="EsoUI/Art/Miscellaneous/icon_LMB.dds">
+		                            <Dimensions x="32" y="32" />
+		                            <Anchor point="BOTTOM" relativeTo="IRY_Book" relativePoint="BOTTOM" offsetX="-25" offsetY="-170" />
+		                            <OnMouseUp>
+		                                IRY:SwitchPageClick(self, button)
+		                            </OnMouseUp>
+		                        </Texture>
+		                        <Texture name="$(parent)NextPage" mouseEnabled="true" textureFile="EsoUI/Art/Miscellaneous/icon_RMB.dds">
+		                            <Dimensions x="32" y="32" />
+		                            <Anchor point="BOTTOM" relativeTo="IRY_Book" relativePoint="BOTTOM" offsetX="40" offsetY="-170" />
+		                            <OnMouseUp>
+		                                IRY:SwitchPageClick(self, button)
+		                            </OnMouseUp>
+		                        </Texture>
+		                    </Controls>
+		                </Control>
+
+					</Controls>
+				</Control>
+			</Controls>
 		</TopLevelControl>
+
+			<!-- Virtual controls -->
+
+			<!-- Virtual rows -->
+			<Control name="IRY_BookRow_Virtual" mouseEnabled="true" virtual="true">
+				<!-- <Anchor point="RIGHT" relativePoint="CENTER" relativeTo="IRY_Book" offsetX="0" offsetY="-300"/> -->
+				<Dimensions x="420" y="30" />
+				<Controls>
+					<Backdrop name="$(parent)BackDrop" centerColor="000000" edgeColor="00000000" alpha="0.5">
+						<AnchorFill/>
+					</Backdrop>
+
+					<Label name="$(parent)Name" font="ZoFontBookPaper" text="Name" color="FFFFFF">
+						<Anchor point="LEFT" relativePoint="LEFT" offsetX="40" offsetY="0"/>
+					</Label>
+
+					<Texture name="$(parent)Alliance" textureFile="">
+						<Dimensions x="32" y="32"/>
+						<Anchor point="LEFT" relativePoint="LEFT" offsetX="0" offsetY="0"/>
+					</Texture>
+
+				</Controls>
+			</Control>
+
+			<!-- Virtual "+" -->
+			<Texture name="IRY_Star_Virtual" textureFile="esoui/art/buttons/pointsplus_up.dds" mouseEnabled="true" color="FF0000" virtual="true">
+				<Dimensions x="32" y="32"/>
+				<!-- <Anchor point="LEFT" relativePoint="LEFT" offsetX="250" offsetY="0"/> -->
+				<OnMouseEnter>
+					self:SetColor(0,1,0,1)
+				</OnMouseEnter>
+				<OnMouseExit>
+					self:SetColor(1,0,0,1)
+				</OnMouseExit>
+				<OnMouseUp>
+					IRY:ApplyStar(self)
+				</OnMouseUp>
+			</Texture>
+
+
 	</Controls>
 </GuiXml>
