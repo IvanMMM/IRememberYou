@@ -2,12 +2,18 @@
 	<Controls>
 		<TopLevelControl name="IRY_Top">
 			<OnUpdate>
-				<!-- IRY_Update(self) -->
+				<!-- IRY:Update(self) -->
 			</OnUpdate>
 			<Controls>
-				<Control name="IRY_Book" mouseEnabled="true" hidden="false">
+				<Control name="IRY_Book" mouseEnabled="true" hidden="true" movable="true">
 					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
 					<Dimensions x="1024" y="1024" />
+
+					<OnKeyUp>
+						d(key)
+						<!-- self:SetHidden(true) -->
+					</OnKeyUp>
+
 					<Controls>
 						<Texture name="$(parent)Bg" textureFile="esoui/art/lorelibrary/lorelibrary_paperbook.dds">
 							<AnchorFill/>
@@ -15,9 +21,58 @@
 						<Label name="$(parent)AddonTitle" font="ZoFontBookPaperTitle" text="I Remember You" color="000000">
 							<Anchor point="CENTER" relativePoint="LEFT" offsetX="300" offsetY="-340"/>
 						</Label>
-						<Label name="$(parent)SearchTitle" font="ZoFontBookPaperTitle" text="Search" color="000000">
-							<Anchor point="CENTER" relativePoint="RIGHT" offsetX="-300" offsetY="-340"/>
+						<Label name="$(parent)Counter" font="ZoFontGame" color="000000">
+							<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="0" offsetY="-190"/>
+							<Controls>
+								<Label name="$(parent)LeftPage" font="ZoFontGame" text="18" color="000000">
+									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="-200" offsetY="0"/>
+								</Label>
+								<Label name="$(parent)RightPage" font="ZoFontGame" text="36" color="000000">
+									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="240" offsetY="0"/>
+								</Label>
+								<Label name="$(parent)Total" font="ZoFontGame" text="999" color="000000">
+									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="440" offsetY="10"/>
+								</Label>
+							</Controls>
 						</Label>
+						<Control name="$(parent)Search">
+							<Dimensions x="300" y="30" />
+								<Anchor point="LEFT" relativePoint="CENTER" offsetX="120" offsetY="-340"/>
+							<Controls>
+
+								<Label name="$(parent)Title" font="ZoFontBookPaperTitle" text="Search" color="000000">
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-200" offsetY="0"/>
+								</Label>
+
+								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop ZO_EditDefaultText" text="Player Name">
+
+									<OnFocusGained>
+										self:SetText("")
+										IRY.searching=true
+									</OnFocusGained>
+
+									<OnFocusLost>
+										self:SetText("Player Name")
+										IRY.searching=false
+									</OnFocusLost>
+
+									<OnTextChanged>
+										IRY:SearchPlayer(self:GetText())
+									</OnTextChanged>
+
+						            <OnEscape>
+						                self:LoseFocus()
+						            </OnEscape>   
+
+									<Controls>
+										<Backdrop name="$(parent)BackDrop" centerColor="000000" edgeColor="00000000" alpha="0.25">
+											<AnchorFill/>
+										</Backdrop>
+									</Controls>
+								</EditBox>
+
+							</Controls>
+						</Control>
 
 						<!-- taken from lorereader -->
 		                <Control name="$(parent)KeyStripMouseButtons">
@@ -48,7 +103,7 @@
 			<!-- Virtual controls -->
 
 			<!-- Virtual rows -->
-			<Control name="IRY_BookRow_Virtual" mouseEnabled="true" virtual="true">
+			<Control name="IRY_BookRow_Virtual" mouseEnabled="true" virtual="true" hidden="true">
 				<!-- <Anchor point="RIGHT" relativePoint="CENTER" relativeTo="IRY_Book" offsetX="0" offsetY="-300"/> -->
 				<Dimensions x="420" y="30" />
 				<Controls>
@@ -65,6 +120,21 @@
 						<Anchor point="LEFT" relativePoint="LEFT" offsetX="0" offsetY="0"/>
 					</Texture>
 
+					<Texture name="$(parent)DropRate" textureFile="/esoui/art/buttons/cancel_up.dds" mouseEnabled="true">
+						<Dimensions x="32" y="32"/>
+						<Anchor point="LEFT" relativePoint="RIGHT" offsetX="-200" offsetY="0"/>
+						<OnMouseUp>
+							IRY:DropRate(self)
+						</OnMouseUp>
+
+						<OnMouseEnter>
+							self:SetTexture("/esoui/art/buttons/cancel_over.dds")
+						</OnMouseEnter>
+						<OnMouseExit>
+							self:SetTexture("/esoui/art/buttons/cancel_up.dds")
+						</OnMouseExit>
+					</Texture>
+
 				</Controls>
 			</Control>
 
@@ -73,10 +143,10 @@
 				<Dimensions x="32" y="32"/>
 				<!-- <Anchor point="LEFT" relativePoint="LEFT" offsetX="250" offsetY="0"/> -->
 				<OnMouseEnter>
-					self:SetColor(0,1,0,1)
+					IRY:HighhlightStars(self)
 				</OnMouseEnter>
 				<OnMouseExit>
-					self:SetColor(1,0,0,1)
+					IRY:ApplyRealStars(self)
 				</OnMouseExit>
 				<OnMouseUp>
 					IRY:ApplyStar(self)

@@ -27,7 +27,8 @@ end
 function IRY_OnLoad(eventCode,AddonName)
 	if AddonName~="IRememberYou" then return end
 	debug("Addon loaded")
-	
+	IRY_Book.currentpage=1
+
 	IRY_Obj = IRY:New()
 
 
@@ -78,7 +79,7 @@ function IRY:Initialize(self)
 		right={}
 	}
 
--- Greate rows
+-- Create rows
 	-- left page
 	for i=1,18 do
 		self.rows[i] = CreateControlFromVirtual("IRY_BookRow", IRY_Book, "IRY_BookRow_Virtual",i)
@@ -103,14 +104,26 @@ function IRY:Initialize(self)
 			self.rows[i].stars[j]:SetAnchor(LEFT,self.rows[i],LEFT,250-30+(30*j),0)
 			self.rows[i].stars[j].starnumber=j
 		end
-	end	
+	end
+
+-- Create editbox
+	-- self.editbox=CreateControlFromVirtual("IRY_BookSearchEdit", IRY_Book, "ZO_DefaultEditForBackdrop")
+	-- -- self.editbox:ClearAnchors()
+	-- -- self.editbox:SetAnchor(CENTER,IRY_Book,CENTER,300,-340)
+	-- self.editbox:SetText("Enter text here")
+	-- self.editbox:SetHandler("OnEscape", function(self) self:LoseFocus() end)
+	-- self.editbox:SetMaxInputChars(30)
 
 	-- load data
 	IRY:LoadSavedVars()
 
-	-- create page switchers
+	--check if DB is not empty
+	if #self.playerDatabase.data~=0 then
+		IRY:SwitchPage(1)
+	end
 
-	IRY:SwitchPage(1)
+	-- search in progress
+	IRY.searching=false
 end
 
 function IRY:LoadSavedVars()
@@ -120,6 +133,7 @@ function IRY:LoadSavedVars()
 	}
 
 	self.playerDatabase = ZO_SavedVars:NewAccountWide("IRY_SavedVars", version, "playerDatabase", default_playerDatabase, nil)
+	self.searchDatabase = {}
 end
 
 -- chat commands
@@ -127,8 +141,11 @@ function IRY.commandHandler(text)
 	text = string.lower(text)
 	if text=="cls" then 
 		IRY:cls()
+	elseif text=="" then
+		IRY_Book:SetHidden(not IRY_Book:IsHidden())
 	else 
 		d("==IRY commands: ==")
+		d("/iry - display/hide IRY book")
 		d("/iry cls - clear all data")
 	end
 end
@@ -285,6 +302,32 @@ function IRY:SwitchPage(pagen)
 	for i=1,36 do
 		IRY:FillRow(i,i+(pagen*36))
 	end
+
+	-- Modify counters
+	for i=1,18 do
+		if not self.rows[i]:IsHidden() then
+			IRY_BookCounterLeftPage:SetText(i+36*(IRY_Book.currentpage-1 or 1))
+		end
+	end
+
+	local allrowshidden=true
+	for i=19,36 do
+		debug("Row "..i.."is hidden: "..tostring(self.rows[i]:IsHidden()))
+		if not self.rows[i]:IsHidden() then
+			IRY_BookCounterRightPage:SetText(i+36*(IRY_Book.currentpage-1 or 1))
+			allrowshidden=false
+		end
+	end
+
+	-- hide right counter if all rows are hidden
+	if allrowshidden then
+		IRY_BookCounterRightPage:SetHidden(true)
+	else
+		IRY_BookCounterRightPage:SetHidden(false)
+	end
+
+
+	IRY_BookCounterTotal:SetText(#self.playerDatabase.data)
 end
 
 -- Fill row
@@ -322,14 +365,21 @@ function IRY:FillRow(RowID,PlayerId)
 -- Apply Rate
 	if self.playerDatabase.data[PlayerId].rate then
 		local rate=self.playerDatabase.data[PlayerId].rate
-		for i=1,rate do
-			_G[basename].stars[i]:SetColor(0,1,0,1)
+		if rate~=-1 then
+			for i=1,rate do
+				_G[basename].stars[i]:SetColor(0,1,0,1)
+			end
+		else
+			for i=1,5 do
+				_G[basename].stars[i]:SetColor(1,0,0,1)
+			end
 		end
 	else
 		debug ("No Rate for id: "..PlayerId)
 	end
 
 	self.rows[RowID].id=PlayerId
+
 end
 
 -- XML function
@@ -346,6 +396,15 @@ function IRY:ApplyStar(self)
 	-- Update book
 	IRY:SwitchPage(IRY_Book.currentpage)
 end
+function IRY:DropRate(self)
+	local id=(self:GetParent()).id
+
+	IRY:RatePlayer(id,-1)
+
+	-- Update book
+	IRY:SwitchPage(IRY_Book.currentpage)
+	IRY:ApplyRealStars(self)
+end
 
 -- XML function
 -- Capture click on next/previous page
@@ -360,6 +419,93 @@ function IRY:SwitchPageClick(self, button)
 		IRY:SwitchPage(IRY_Book.currentpage+1)
 	end
 end
+
+-- XML function
+-- Highlight Stars OnMouseEnter
+function IRY:HighhlightStars(self)
+	local parent=self:GetParent()
+
+	for i=1,self.starnumber do
+		parent.stars[i]:SetColor(1,1,0,1)
+	end
+
+	for i=self.starnumber+1,1 do
+		parent.stars[i]:SetColor(1,0,0,1)
+	end
+end
+
+-- XML function
+-- Apply current star value to this row
+function IRY:ApplyRealStars(self)
+	local parent=self:GetParent()
+	local currentstars=IRY.playerDatabase.data[parent.id].rate
+
+	-- debug("currentstars: "..currentstars)
+
+	if currentstars>=1 and currentstars<=5 then
+		for i=1,currentstars do
+			parent.stars[i]:SetColor(0,1,0,1)
+		end
+		for i=currentstars+1,5 do
+			parent.stars[i]:SetColor(1,0,0,1)
+		end
+	else
+		for i=1,5 do
+			parent.stars[i]:SetColor(1,0,0,1)
+		end
+	end
+ end
+
+ -- XML function 
+ -- Search for intut text in db
+ -- SearchDatabase stores only player ID from playerDatabase.
+ function IRY:SearchPlayer(text)
+ 	-- do not search if player missed focus
+ 	IRY:HidePrevNextButtons(self)
+ 	if text=="Player Name" or text=="" then
+ 		IRY:SwitchPage(1)
+ 		return 
+ 	end
+
+ 	self.searchDatabase={}
+	for k,v in pairs(IRY.playerDatabase.data) do
+		debug("Search for: "..text.." in "..v.name)
+		local searchresult,_=string.find(string.lower(v.name),string.lower(text),0,true)
+		if searchresult ~=nil then
+			self.searchDatabase[#self.searchDatabase+1]=k
+		end
+	end
+
+	for i=1,#self.searchDatabase do
+		IRY:FillRow(i,self.searchDatabase[i])
+	end
+
+	for i=#self.searchDatabase+1,36 do
+		self.rows[i]:SetHidden(true)
+	end
+ end
+
+ -- Hide Next/prev button if search is in progress
+function IRY:HidePrevNextButtons(self)
+	local maxpages=math.ceil(#self.playerDatabase.data/36) or 0
+
+	if maxpages==0 then return end
+
+	if self.searching then
+		IRY_BookCounterLeftPage:SetHidden(false)
+		IRY_BookCounterRightPage:SetHidden(false)
+		IRY_BookCounterTotal:SetHidden(false)
+		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(true)
+		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(true)
+	else
+		IRY_BookCounterLeftPage:SetHidden(true)
+		IRY_BookCounterRightPage:SetHidden(true)
+		IRY_BookCounterTotal:SetHidden(true)
+		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(false)
+		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(false)
+	end
+end
+
 
 
 -- Register Events
