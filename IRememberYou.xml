@@ -9,11 +9,6 @@
 					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
 					<Dimensions x="1024" y="1024" />
 
-					<OnKeyUp>
-						d(key)
-						<!-- self:SetHidden(true) -->
-					</OnKeyUp>
-
 					<Controls>
 						<Texture name="$(parent)Bg" textureFile="esoui/art/lorelibrary/lorelibrary_paperbook.dds">
 							<AnchorFill/>

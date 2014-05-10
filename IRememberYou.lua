@@ -5,7 +5,7 @@
 IRY=ZO_Object:Subclass()
 
 local IRY_debug=true
-local version=0.2
+local version=0.35
 
 -- Util functions
 -- debug
@@ -15,10 +15,7 @@ local function debug(text)
 end
 
 local function compareByName(a,b)
-	-- debug("Key: "..tostring(k))
-	-- for k,v in pairs(a) do
-	-- 	debug("Key: "..tostring(v))
-	-- end
+	if not a["name"] or not a["name"] then return end
 	return a["name"]<b["name"]
 end
 -- end of Util functions
@@ -57,6 +54,75 @@ local function AddGroup()
 			alliance,name,level,vetrank=IRY:GetPlayerInfo(unitTag)
 			IRY:AddPlayer(alliance,name,level,vetrank)
 		end
+	end
+end
+
+local function HookChatLinkClicked(self,linkData, linkText, button, ...)
+
+	local function AddPlayerFromMenu()
+		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
+	end
+
+	-- thx Kentarii
+	local linkType, _, _ = zo_strsplit(":", linkData)
+
+	local start,stop=string.find(linkData,":.+%[")
+	local name=string.sub(linkData,start+1,stop-1)
+
+	debug("linkData: "..tostring(linkData))
+	debug("linkType: "..tostring(linkType))
+	debug("name: "..tostring(name))
+	debug("Self: "..tostring(self:GetName()))
+	debug("Parent: "..tostring((self:GetParent()):GetName()))
+
+	-- add our menu only to player linktype
+
+	if linkType ~= CHARACTER_LINK_TYPE and linkType~=DISPLAY_NAME_LINK_TYPE then return end
+
+
+	-- Call original 
+	ZO_ChatSystem_OnLinkClicked(linkData, linkText, button, ...)
+
+	if button == 2 then
+        ZO_Menu:SetHidden(true)
+        AddMenuItem("Rate", AddPlayerFromMenu)
+
+        ShowMenu(nil, 1)
+    end
+
+	-- We want our item added after all items. So, wait untill they are created. Littly hacky, but... :banana:
+	-- zo_callLater(
+	-- 	function () 
+			-- ZO_Menu:SetHidden(true)
+	-- 		d("added")
+
+	-- 		AddMenuItem("Rate", AddPlayerFromMenu)
+
+			-- ShowMenu(nil, 1)
+	-- 		ZO_Menu:SetHeight(ZO_Menu:GetHeight()+22.3125)
+ --   			ZO_Menu.height=ZO_Menu.height+22.3125
+
+ --   			ZO_Menu:SetHidden(true)
+ --   			ZO_Menu:SetHidden(false)
+
+ --   			-- Интересно.
+ --  			-- ZO_Menu_SelectItem(ZO_Menu.items[id].item)
+
+
+
+	-- 	end
+	-- , 1)
+end
+
+local function HookChatLink()
+
+	debug("Unregistered: "..tostring(EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED)))
+
+	for i=1,#ZO_ChatWindow.container.windows do
+		d("window handler: "..i)
+		-- 
+		-- ZO_PreHookHandler(ZO_ChatWindow.container.windows[i].buffer,"OnLinkClicked",HookChatLinkClicked)
+		ZO_ChatWindow.container.windows[i].buffer:SetHandler("OnLinkClicked",HookChatLinkClicked)
 	end
 end
 
@@ -106,14 +172,6 @@ function IRY:Initialize(self)
 		end
 	end
 
--- Create editbox
-	-- self.editbox=CreateControlFromVirtual("IRY_BookSearchEdit", IRY_Book, "ZO_DefaultEditForBackdrop")
-	-- -- self.editbox:ClearAnchors()
-	-- -- self.editbox:SetAnchor(CENTER,IRY_Book,CENTER,300,-340)
-	-- self.editbox:SetText("Enter text here")
-	-- self.editbox:SetHandler("OnEscape", function(self) self:LoseFocus() end)
-	-- self.editbox:SetMaxInputChars(30)
-
 	-- load data
 	IRY:LoadSavedVars()
 
@@ -124,6 +182,29 @@ function IRY:Initialize(self)
 
 	-- search in progress
 	IRY.searching=false
+
+	-- Register handler on right button click
+	-- ZO_ChatWindow:SetHandler("OnLinkClicked", function()
+	-- 	d("Sth happend")
+	-- end)
+
+	-- Should work now
+
+
+
+
+	-- WORK on all menu
+	-- ZO_Menu:SetHandler("OnShow", function()
+	-- 	d("Window showed")
+	-- end)
+
+	-- WORK on all menu
+	-- ZO_Menu:SetHandler("OnUpdate", function()
+	-- 	if not ZO_Menu:IsHidden() then
+	-- 		d("Window showed")
+	-- 	end
+	-- end)
+
 end
 
 function IRY:LoadSavedVars()
@@ -312,7 +393,7 @@ function IRY:SwitchPage(pagen)
 
 	local allrowshidden=true
 	for i=19,36 do
-		debug("Row "..i.."is hidden: "..tostring(self.rows[i]:IsHidden()))
+		-- debug("Row "..i.."is hidden: "..tostring(self.rows[i]:IsHidden()))
 		if not self.rows[i]:IsHidden() then
 			IRY_BookCounterRightPage:SetText(i+36*(IRY_Book.currentpage-1 or 1))
 			allrowshidden=false
@@ -525,3 +606,5 @@ EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_LEFT, AddGroup
 EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_INVITE_RECEIVED, AddGroup)
 -- role changed
 EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_ROLES_CHANGED, AddGroup)
+
+EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED, HookChatLink)
