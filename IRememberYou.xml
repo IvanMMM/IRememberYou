@@ -8,6 +8,12 @@
 				<Control name="IRY_Book" mouseEnabled="true" hidden="true" movable="true">
 					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
 					<Dimensions x="1024" y="1024" />
+					<OnShow>
+						IRY.hidden=false
+					</OnShow>
+					<OnHide>
+						IRY.hidden=true
+					</OnHide>
 
 					<Controls>
 						<Texture name="$(parent)Bg" textureFile="esoui/art/lorelibrary/lorelibrary_paperbook.dds">
@@ -107,19 +113,19 @@
 					</Backdrop>
 
 					<Label name="$(parent)Name" font="ZoFontBookPaper" text="Name" color="FFFFFF">
-						<Anchor point="LEFT" relativePoint="LEFT" offsetX="40" offsetY="0"/>
+						<Anchor point="LEFT" relativePoint="LEFT" offsetX="70" offsetY="0"/>
 					</Label>
 
 					<Texture name="$(parent)Alliance" textureFile="">
 						<Dimensions x="32" y="32"/>
-						<Anchor point="LEFT" relativePoint="LEFT" offsetX="0" offsetY="0"/>
+						<Anchor point="LEFT" relativePoint="LEFT" offsetX="30" offsetY="0"/>
 					</Texture>
 
 					<Texture name="$(parent)DropRate" textureFile="/esoui/art/buttons/cancel_up.dds" mouseEnabled="true">
 						<Dimensions x="32" y="32"/>
-						<Anchor point="LEFT" relativePoint="RIGHT" offsetX="-200" offsetY="0"/>
+						<Anchor point="LEFT" relativePoint="LEFT" offsetX="0" offsetY="0"/>
 						<OnMouseUp>
-							IRY:DropRate(self)
+							IRY:DropRate(self,button)
 						</OnMouseUp>
 
 						<OnMouseEnter>

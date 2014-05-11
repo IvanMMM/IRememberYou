@@ -1,0 +1,13 @@
+<Bindings>
+  <Layer name="SI_KEYBINDINGS_CATEGORY_GENERAL">
+    <Category name="I Remember You">
+      <Action name="SHOWHIDE_BOOK">
+        <Down>
+
+        	IRY:SetHideState(not IRY.hidden)
+
+        </Down>
+      </Action>
+    </Category>
+  </Layer>
+</Bindings>

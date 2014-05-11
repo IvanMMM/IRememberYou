@@ -4,8 +4,8 @@
 -- Initialize object
 IRY=ZO_Object:Subclass()
 
-local IRY_debug=true
-local version=0.35
+local IRY_debug=false
+local version=0.4
 
 -- Util functions
 -- debug
@@ -27,7 +27,6 @@ function IRY_OnLoad(eventCode,AddonName)
 	IRY_Book.currentpage=1
 
 	IRY_Obj = IRY:New()
-
 
 	-- chat commanhs
 	SLASH_COMMANDS["/iry"] = IRY.commandHandler
@@ -59,29 +58,31 @@ end
 
 local function HookChatLinkClicked(self,linkData, linkText, button, ...)
 
-	local function AddPlayerFromMenu()
-		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
-	end
-
-	-- thx Kentarii
 	local linkType, _, _ = zo_strsplit(":", linkData)
 
-	local start,stop=string.find(linkData,":.+%[")
-	local name=string.sub(linkData,start+1,stop-1)
-
+	-- debug("Self: "..tostring(self:GetName()))
 	debug("linkData: "..tostring(linkData))
 	debug("linkType: "..tostring(linkType))
-	debug("name: "..tostring(name))
-	debug("Self: "..tostring(self:GetName()))
-	debug("Parent: "..tostring((self:GetParent()):GetName()))
-
-	-- add our menu only to player linktype
-
-	if linkType ~= CHARACTER_LINK_TYPE and linkType~=DISPLAY_NAME_LINK_TYPE then return end
-
 
 	-- Call original 
 	ZO_ChatSystem_OnLinkClicked(linkData, linkText, button, ...)
+
+	-- add our menu only to player linktype
+	if linkType ~= CHARACTER_LINK_TYPE and linkType~=DISPLAY_NAME_LINK_TYPE then return end
+
+
+	start,stop=string.find(linkData,"%[.*")
+	name=string.sub(linkData,start+1,stop-1)
+
+	debug("name: "..tostring(name))
+
+	function AddPlayerFromMenu()
+		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
+
+		IRY:SearchPlayer(name)
+		IRY:SetHideState(false)
+	end
+
 
 	if button == 2 then
         ZO_Menu:SetHidden(true)
@@ -90,28 +91,6 @@ local function HookChatLinkClicked(self,linkData, linkText, button, ...)
         ShowMenu(nil, 1)
     end
 
-	-- We want our item added after all items. So, wait untill they are created. Littly hacky, but... :banana:
-	-- zo_callLater(
-	-- 	function () 
-			-- ZO_Menu:SetHidden(true)
-	-- 		d("added")
-
-	-- 		AddMenuItem("Rate", AddPlayerFromMenu)
-
-			-- ShowMenu(nil, 1)
-	-- 		ZO_Menu:SetHeight(ZO_Menu:GetHeight()+22.3125)
- --   			ZO_Menu.height=ZO_Menu.height+22.3125
-
- --   			ZO_Menu:SetHidden(true)
- --   			ZO_Menu:SetHidden(false)
-
- --   			-- Интересно.
- --  			-- ZO_Menu_SelectItem(ZO_Menu.items[id].item)
-
-
-
-	-- 	end
-	-- , 1)
 end
 
 local function HookChatLink()
@@ -119,13 +98,11 @@ local function HookChatLink()
 	debug("Unregistered: "..tostring(EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED)))
 
 	for i=1,#ZO_ChatWindow.container.windows do
-		d("window handler: "..i)
 		-- 
 		-- ZO_PreHookHandler(ZO_ChatWindow.container.windows[i].buffer,"OnLinkClicked",HookChatLinkClicked)
 		ZO_ChatWindow.container.windows[i].buffer:SetHandler("OnLinkClicked",HookChatLinkClicked)
 	end
 end
-
 -- end of Event functions
 
 -- Core functions
@@ -175,6 +152,17 @@ function IRY:Initialize(self)
 	-- load data
 	IRY:LoadSavedVars()
 
+	-- create settings
+	IRY:CreateSettings()
+
+	-- Create scene
+	--  /script SCENE_MANAGER:Show("iry")
+	IRY:CreateScene()
+
+	-- Register Events
+	self:SetGroupCollectState()
+	self:SetTargetCollectState()
+
 	--check if DB is not empty
 	if #self.playerDatabase.data~=0 then
 		IRY:SwitchPage(1)
@@ -183,50 +171,162 @@ function IRY:Initialize(self)
 	-- search in progress
 	IRY.searching=false
 
-	-- Register handler on right button click
-	-- ZO_ChatWindow:SetHandler("OnLinkClicked", function()
-	-- 	d("Sth happend")
-	-- end)
-
-	-- Should work now
-
-
-
-
-	-- WORK on all menu
-	-- ZO_Menu:SetHandler("OnShow", function()
-	-- 	d("Window showed")
-	-- end)
-
-	-- WORK on all menu
-	-- ZO_Menu:SetHandler("OnUpdate", function()
-	-- 	if not ZO_Menu:IsHidden() then
-	-- 		d("Window showed")
-	-- 	end
-	-- end)
+	-- Current show state:
+	IRY.hidden=true
 
 end
 
+-- Load vars
 function IRY:LoadSavedVars()
 	debug("LoadSavedVars called")
 	local default_playerDatabase={
 		data={}
 	}
+	
+	local default_settings = {
+		groupCollect=true,
+		targetCollect=false
+	}
 
+	self.settings = ZO_SavedVars:NewAccountWide("IRY_SavedVars", version, "settings", default_settings, nil)
 	self.playerDatabase = ZO_SavedVars:NewAccountWide("IRY_SavedVars", version, "playerDatabase", default_playerDatabase, nil)
 	self.searchDatabase = {}
 end
 
+-- create settings
+function IRY:CreateSettings()
+	LAM = LibStub("LibAddonMenu-1.0")
+
+	local panel = LAM:CreateControlPanel("IRYSettingsPanel", "I Remember You")
+	LAM:AddHeader(panel, "IRYSettingsHeader", "Add players form:")
+
+	LAM:AddCheckbox(panel, "IRYSettingsCollectGroup", "Group", "Enables/Disables adding players from groups",
+					function() return self:IsGroupCollectEnabled() end,		--getFunc
+
+					function() 	IRY.settings.groupCollect = not IRY.settings.groupCollect
+								return self:SetGroupCollectState() end		--setFunc 
+				    )
+
+	LAM:AddCheckbox(panel, "IRYSettingsCollectTarget", "Target", "Enables/Disables adding players from your current target",
+					function() return self:IsTargetCollectEnabled() end,	--getFunc
+
+					function() 	IRY.settings.targetCollect = not IRY.settings.targetCollect
+								return self:SetTargetCollectState() end,		--setFunc 
+					true,													-- warning
+					"This option can seriously increase number of players in your IRY book"
+				    )
+end
+
+-- create scene
+function IRY:CreateScene()
+	if not IRY_SCENE then
+
+		IRY_BOOK_FRAGMENT = ZO_FadeSceneFragment:New(IRY_Book)
+
+		IRY_SCENE = ZO_Scene:New("iry", SCENE_MANAGER)
+		IRY_SCENE:AddFragment(FRAME_PLAYER_FRAGMENT)
+		IRY_SCENE:AddFragment(FRAME_EMOTE_FRAGMENT_JOURNAL)
+		IRY_SCENE:AddFragment(IRY_BOOK_FRAGMENT)
+
+		-- .dat unpacked only from 1.0. Looks like sth changed since then, using treasure map sound
+
+		IRY_SCENE:AddFragment(TREASURE_MAP_SOUNDS)
+	end
+end
+
+function IRY:ShowScene()
+	SCENE_MANAGER:Show("iry")
+end
+
+function IRY:HideScene()
+	SCENE_MANAGER:Hide("iry")
+end
+
+function IRY:SetHideState(state)
+
+	debug("New state: "..tostring(state))
+	if not state then
+		IRY:ShowScene()
+	else
+		IRY:HideScene()
+	end
+end
+
+-- settings Get functions
+function IRY:IsGroupCollectEnabled()
+	return IRY.settings.groupCollect
+end
+
+function IRY:IsTargetCollectEnabled()
+	return IRY.settings.targetCollect
+end
+
+-- settings Set functions
+-- Group 
+function IRY:SetGroupCollectState()
+	if IRY.settings.groupCollect then 
+		debug("Registering Group events")
+		-- someone (except me) joined
+		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_JOINED, AddGroup)
+		-- someone left
+		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_LEFT, AddGroup)
+		-- invite recived
+		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_INVITE_RECEIVED, AddGroup)
+		-- role changed
+		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_ROLES_CHANGED, AddGroup)
+	else
+		debug("Unregistering Group events")
+		-- someone (except me) joined
+		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_JOINED)
+		-- someone left
+		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_LEFT)
+		-- invite recived
+		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_GROUP_INVITE_RECEIVED)
+		-- role changed
+		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_ROLES_CHANGED)
+	end
+end
+
+function IRY:SetTargetCollectState()
+	if IRY.settings.targetCollect then 
+		debug("Registering Target events")
+		-- Target changed
+		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED, AddReticle)
+	else
+		debug("Unregistering Target events")
+		-- someone (except me) joined
+		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED)
+	end
+end
+
 -- chat commands
 function IRY.commandHandler(text)
+
+	-- We need to save register
+	if string.match(text,"^add ") then
+		local first,last=string.find(text,'%".+%"')
+
+		if (not first) or (not last) then d("Wrong player name format") return end
+
+		local name = string.sub(text, first+1, last-1)
+
+
+		debug("Name from add: "..name)
+		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
+		IRY:SearchPlayer(name)
+		IRY:SetHideState(false)
+	end
+
+	-- rest to lower
 	text = string.lower(text)
 	if text=="cls" then 
 		IRY:cls()
 	elseif text=="" then
-		IRY_Book:SetHidden(not IRY_Book:IsHidden())
+		IRY:SetHideState(not IRY.hidden)
 	else 
 		d("==IRY commands: ==")
 		d("/iry - display/hide IRY book")
+		d('/iry add "Name" - add player')
 		d("/iry cls - clear all data")
 	end
 end
@@ -295,9 +395,18 @@ function IRY:AddPlayer(alliance,name,level,vetrank)
 	table.sort(self.playerDatabase.data, compareByName)
 
 	IRY:SwitchPage(IRY_Book.currentpage)
+
+	-- repeat search after db is sorted and return id of player added
+	for i=1,#self.playerDatabase.data do
+		if self.playerDatabase.data[i].name==name then
+			debug("Player name: '"..name.."'. Player id: "..i)
+			return i
+		end
+	end
+
 end
 
--- Allows playername or #table
+-- Allows playername or table[id]
 function IRY:RemovePlayer(...)
 	local arg={...}
 	local removed=false
@@ -330,7 +439,7 @@ function IRY:RemovePlayer(...)
 		debug("Wrong RemovePlayer attribute type")
 	end
 
-	-- IRY:RecountIndex()
+	IRY:SwitchPage(IRY_Book.currentpage)
 
 	return removed
 end
@@ -355,7 +464,10 @@ end
 
 -- Switch page. Form 1
 function IRY:SwitchPage(pagen)
-	local maxpages=math.ceil(#self.playerDatabase.data/36) or 0
+	local maxpages=math.ceil(#self.playerDatabase.data/36)
+
+	self.searching=false
+	IRY:HidePrevNextButtons()
 
 	-- hide/show Prev button
 	if pagen>1 then
@@ -477,10 +589,20 @@ function IRY:ApplyStar(self)
 	-- Update book
 	IRY:SwitchPage(IRY_Book.currentpage)
 end
-function IRY:DropRate(self)
+
+-- LBM - drop rate
+-- RMB - remove player from db
+function IRY:DropRate(self, button)
+
+	debug("Button clicked: "..button)
+
 	local id=(self:GetParent()).id
 
-	IRY:RatePlayer(id,-1)
+	if button==1 then
+		IRY:RatePlayer(id,-1)
+	elseif button==2 then
+		IRY:RemovePlayer(id)
+	end
 
 	-- Update book
 	IRY:SwitchPage(IRY_Book.currentpage)
@@ -542,10 +664,14 @@ function IRY:ApplyRealStars(self)
  -- SearchDatabase stores only player ID from playerDatabase.
  function IRY:SearchPlayer(text)
  	-- do not search if player missed focus
- 	IRY:HidePrevNextButtons(self)
  	if text=="Player Name" or text=="" then
+ 		self.searching=false
+ 		IRY:HidePrevNextButtons()
  		IRY:SwitchPage(1)
- 		return 
+ 		return
+ 	else
+ 		self.searching=true
+ 		IRY:HidePrevNextButtons()
  	end
 
  	self.searchDatabase={}
@@ -567,21 +693,23 @@ function IRY:ApplyRealStars(self)
  end
 
  -- Hide Next/prev button if search is in progress
-function IRY:HidePrevNextButtons(self)
-	local maxpages=math.ceil(#self.playerDatabase.data/36) or 0
+function IRY:HidePrevNextButtons()
+	local maxpages=math.ceil(#self.playerDatabase.data/36)
+
+	debug("self.searching: "..tostring(self.searching))
 
 	if maxpages==0 then return end
 
 	if self.searching then
-		IRY_BookCounterLeftPage:SetHidden(false)
-		IRY_BookCounterRightPage:SetHidden(false)
-		IRY_BookCounterTotal:SetHidden(false)
-		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(true)
-		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(true)
-	else
 		IRY_BookCounterLeftPage:SetHidden(true)
 		IRY_BookCounterRightPage:SetHidden(true)
 		IRY_BookCounterTotal:SetHidden(true)
+		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(true)
+		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(true)
+	else
+		IRY_BookCounterLeftPage:SetHidden(false)
+		IRY_BookCounterRightPage:SetHidden(false)
+		IRY_BookCounterTotal:SetHidden(false)
 		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(false)
 		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(false)
 	end
@@ -593,18 +721,7 @@ end
 
 -- Addon loaded
 EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_ADD_ON_LOADED, IRY_OnLoad)
-
--- Target changed
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED, AddReticle)
-
--- Group 
--- someone (except me) joined
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_JOINED, AddGroup)
--- someone left
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_LEFT, AddGroup)
--- invite recived
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_INVITE_RECEIVED, AddGroup)
--- role changed
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_GROUP_MEMBER_ROLES_CHANGED, AddGroup)
-
 EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED, HookChatLink)
+
+-- Text for bindings.XML
+ZO_CreateStringId("SI_BINDING_NAME_SHOWHIDE_BOOK", "Show/Hide IRY book")

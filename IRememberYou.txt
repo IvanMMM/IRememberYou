@@ -1,6 +1,11 @@
 ## Title: IRememberYou
 ## APIVersion: 100003
 ## SavedVariables: IRY_SavedVars
+## OptionalDependsOn: LibAddonMenu-1.0
+
+lib\LibStub\LibStub.lua
+lib\LibAddonMenu-1.0\LibAddonMenu-1.0.lua
 
 IRememberYou.lua
 IRememberYou.xml
+Bindings.xml
