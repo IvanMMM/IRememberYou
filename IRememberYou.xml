@@ -2,7 +2,7 @@
 	<Controls>
 		<TopLevelControl name="IRY_Top">
 			<OnUpdate>
-				<!-- IRY:Update(self) -->
+				IRY_Update(self)
 			</OnUpdate>
 			<Controls>
 				<Control name="IRY_Book" mouseEnabled="true" hidden="true" movable="false">
@@ -19,7 +19,7 @@
 						<Texture name="$(parent)Bg" textureFile="esoui/art/lorelibrary/lorelibrary_paperbook.dds">
 							<AnchorFill/>
 						</Texture>
-						<Label name="$(parent)AddonTitle" font="ZoFontBookPaperTitle" text="I Remember You" color="000000">
+						<Label name="$(parent)AddonTitle" font="ZoFontBookPaperTitle" color="000000">
 							<Anchor point="CENTER" relativePoint="LEFT" offsetX="300" offsetY="-340"/>
 						</Label>
 						<Label name="$(parent)Counter" font="ZoFontGame" color="000000">
@@ -41,11 +41,17 @@
 							<Anchor point="LEFT" relativePoint="CENTER" offsetX="120" offsetY="-340"/>
 							<Controls>
 
-								<Label name="$(parent)Title" font="ZoFontBookPaperTitle" text="Search" color="000000">
+								<Label name="$(parent)Title" font="ZoFontBookPaperTitle" color="000000">
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-200" offsetY="0"/>
+									<OnInitialized>
+										self:SetText(IRY_STRING_BOOK_SEARCH)
+									</OnInitialized>
 								</Label>
 
-								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop ZO_EditDefaultText" text="Player Name">
+								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop ZO_EditDefaultText" text="NoText">
+									<OnInitialized>
+										self:SetText(IRY_STRING_SEARCH_DEFAULT)
+									</OnInitialized>
 
 									<OnFocusGained>
 										self:SetText("")
@@ -53,12 +59,14 @@
 									</OnFocusGained>
 
 									<OnFocusLost>
-										self:SetText("Player Name")
+										self:SetText(IRY_STRING_SEARCH_DEFAULT)
 										IRY.searching=false
 									</OnFocusLost>
 
 									<OnTextChanged>
-										IRY:SearchPlayer(self:GetText())
+										if IRY_Book.loaded then
+											IRY:SearchPlayer(self:GetText())
+										end
 									</OnTextChanged>
 
 						            <OnEscape>
@@ -120,11 +128,12 @@
 							<Dimensions x="300" y="190" />
 							<Anchor point="CENTER" relativePoint="CENTER" offsetX="0" offsetY="0"/>
 							<Controls>
-								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop ZO_EditDefaultText" text="Player Name">
+								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop ZO_EditDefaultText">
 									<OnInitialized>
 										self:SetMaxInputChars(189)
 										self:SetFont("ZoFontBookPaper")
 										self:SetColor(0,0,0,1)
+										self:SetNewLineEnabled(false)
 									</OnInitialized>
 						            <OnEscape>
 						                self:LoseFocus()
@@ -145,6 +154,43 @@
 					</Controls>
 				</Control>
 
+				<Control name="IRY_TargetRate" hidden="true">
+					<Dimensions x="80" y="20" />
+					<Anchor point="CENTER" relativePoint="CENTER" offsetX="0" offsetY="0" relativeTo="GuiRoot"/>
+					<Controls>
+						<Backdrop name="$(parent)BackDrop" centerColor="FFFFFF" edgeColor="00000000" alpha="0">
+							<AnchorFill/>
+						</Backdrop>
+
+						<Control name="$(parent)Star">
+							<AnchorFill/>
+							<Controls>
+								<Texture name="$(parent)1" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+									<Dimensions x="20" y="20" />
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-40" offsetY="0"/>
+								</Texture>
+								<Texture name="$(parent)2" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+									<Dimensions x="20" y="20" />
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-20" offsetY="0"/>
+								</Texture>
+								<Texture name="$(parent)3" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+									<Dimensions x="20" y="20" />
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="0" offsetY="0"/>
+								</Texture>	
+								<Texture name="$(parent)4" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+									<Dimensions x="20" y="20" />
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="20" offsetY="0"/>
+								</Texture>	
+								<Texture name="$(parent)5" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+									<Dimensions x="20" y="20" />
+									<Anchor point="CENTER" relativePoint="CENTER" offsetX="40" offsetY="0"/>
+								</Texture>	
+							</Controls>
+						</Control>
+
+					</Controls>
+				</Control>
+
 			</Controls>
 		</TopLevelControl>
 
@@ -152,7 +198,6 @@
 
 			<!-- Virtual rows -->
 			<Control name="IRY_BookRow_Virtual" mouseEnabled="true" virtual="true" hidden="true">
-				<!-- <Anchor point="RIGHT" relativePoint="CENTER" relativeTo="IRY_Book" offsetX="0" offsetY="-300"/> -->
 				<Dimensions x="420" y="30" />
 				<Controls>
 					<Backdrop name="$(parent)BackDrop" centerColor="000000" edgeColor="00000000" alpha="0.15">

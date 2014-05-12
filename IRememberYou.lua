@@ -1,11 +1,17 @@
 -- IRememberYou addon (IRY)
 -- Allows player to rate all players he ever met.
 
+local languages={"EN","GR","FR"}
+
 -- Initialize object
 IRY=ZO_Object:Subclass()
 
-local IRY_debug=true
-local version=0.41
+-- Translate strings
+local IRY_debug=false
+local version=0.43
+local tex_star="/IRememberYou/textures/star.dds"
+local tex_star_over="/IRememberYou/textures/star_over.dds"
+IRY_addonsLoaded={}
 
 -- Util functions
 -- debug
@@ -22,6 +28,8 @@ end
 
 -- Addon onload
 function IRY_OnLoad(eventCode,AddonName)
+	-- Looking for known UI addons
+
 	if AddonName~="IRememberYou" then return end
 	debug("Addon loaded")
 	IRY_Book.currentpage=1
@@ -30,16 +38,56 @@ function IRY_OnLoad(eventCode,AddonName)
 
 	-- chat commanhs
 	SLASH_COMMANDS["/iry"] = IRY.commandHandler
+	IRY_Book.loaded=true
 end
 
 -- Event functions
 -- EVENT_RETICLE_TARGET_CHANGED
-local function AddReticle()
+local function OnReticleChanged()
 	unitTag="reticleover"
-
 	if IRY:GetPlayerInfo(unitTag) then
 		alliance,name,level,vetrank=IRY:GetPlayerInfo(unitTag)
+	else
+		for i=1,5 do
+			_G["IRY_TargetRateStar"..i]:SetHidden(true)
+		end
+		return
+	end
+
+	-- Add new to database if enabled
+	if IRY.settings.targetCollect then
 		IRY:AddPlayer(alliance,name,level,vetrank)
+	end
+
+
+	-- Update info about target stars displaying
+	-- search for this name in player database
+	for k,v in pairs(IRY.playerDatabase.data) do
+		if v.name==name then	
+			debug("Player found in db: "..name.." id: "..k)
+
+			-- Update player info
+			IRY:AddPlayer(alliance,name,level,vetrank)
+
+			-- display new stars at UI
+			if v.rate==-1 or not v.rate then
+				for i=1,5 do
+					_G["IRY_TargetRateStar"..i]:SetHidden(true)
+				end
+			end
+
+			for i=1,v.rate do
+				if i>=1 and i<=5 then
+					_G["IRY_TargetRateStar"..i]:SetHidden(false)
+				end
+			end
+
+			for i=v.rate+1,5 do
+				if i>=1 and i<=5 then
+					_G["IRY_TargetRateStar"..i]:SetHidden(true)
+				end
+			end
+		end
 	end
 end
 
@@ -56,7 +104,7 @@ local function AddGroup()
 	end
 end
 
-local function HookChatLinkClicked(self,linkData, linkText, button, ...)
+local function ChatHookClicked(self,linkData, linkText, button, ...)
 
 	local linkType, _, _ = zo_strsplit(":", linkData)
 
@@ -76,32 +124,34 @@ local function HookChatLinkClicked(self,linkData, linkText, button, ...)
 
 	debug("name: "..tostring(name))
 
-	function AddPlayerFromMenu()
-		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
-
-		IRY_BookSearchEdit:SetText(name)
-		IRY:SearchPlayer(name)
-		IRY:SetHideState(false)
-	end
-
-
 	if button == 2 then
         ZO_Menu:SetHidden(true)
-        AddMenuItem("Rate", AddPlayerFromMenu)
+        AddMenuItem(IRY_STRING_CHAT_MENU, AddPlayerFromMenu)
 
         ShowMenu(nil, 1)
     end
 
 end
 
-local function HookChatLink()
+local function AddPlayerFromMenu(name)
+	IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
 
+	IRY_BookSearchEdit:SetText(name)
+	IRY:SearchPlayer(name)
+	IRY:SetHideState(false)
+end
+
+local function GameHooks()
 	debug("Unregistered: "..tostring(EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED)))
 
+	local oldInteract = PLAYER_TO_PLAYER.ShowPlayerInteractMenu
+	PLAYER_TO_PLAYER.ShowPlayerInteractMenu = function(self, isIgnored)
+	    self.menu:AddEntry(IRY_STRING_CHAT_MENU, tex_star, tex_star_over, function() AddPlayerFromMenu(self.currentTarget) end)
+	    oldInteract(self, isIgnored)
+	end
+
 	for i=1,#ZO_ChatWindow.container.windows do
-		-- 
-		-- ZO_PreHookHandler(ZO_ChatWindow.container.windows[i].buffer,"OnLinkClicked",HookChatLinkClicked)
-		ZO_ChatWindow.container.windows[i].buffer:SetHandler("OnLinkClicked",HookChatLinkClicked)
+		ZO_ChatWindow.container.windows[i].buffer:SetHandler("OnLinkClicked",ChatHookClicked)
 	end
 end
 -- end of Event functions
@@ -117,6 +167,23 @@ end
 -- initialize
 function IRY:Initialize(self)
 	debug("Initialize called")
+
+	-- load data
+	IRY:LoadSavedVars()
+
+	-- Apply translate
+	IRY:ApplyLanguage(IRY.settings.language)
+
+	-- Create settings
+	IRY:CreateSettings()
+
+	-- Create scene
+	IRY:CreateScene()
+
+	-- Register Events
+	self:SetGroupCollectState()
+	-- Target events are already registered. We need it to show stars in UI
+
 	self.control=self
 	self.rows={}
 
@@ -147,19 +214,7 @@ function IRY:Initialize(self)
 		end
 	end
 
-	-- load data
-	IRY:LoadSavedVars()
 
-	-- create settings
-	IRY:CreateSettings()
-
-	-- Create scene
-	--  /script SCENE_MANAGER:Show("iry")
-	IRY:CreateScene()
-
-	-- Register Events
-	self:SetGroupCollectState()
-	self:SetTargetCollectState()
 
 
 	-- search in progress
@@ -167,6 +222,9 @@ function IRY:Initialize(self)
 
 	-- Current show state:
 	IRY.hidden=true
+
+	-- Addintional stars displayeed
+	IRY.starsShowed=false
 
 	IRY:SwitchPage(1)
 end
@@ -180,7 +238,8 @@ function IRY:LoadSavedVars()
 	
 	local default_settings = {
 		groupCollect=true,
-		targetCollect=false
+		targetCollect=false,
+		language="EN"
 	}
 
 	self.settings = ZO_SavedVars:NewAccountWide("IRY_SavedVars", version, "settings", default_settings, nil)
@@ -188,27 +247,34 @@ function IRY:LoadSavedVars()
 	self.searchDatabase = {}
 end
 
+-- Display functions
 -- create settings
 function IRY:CreateSettings()
 	LAM = LibStub("LibAddonMenu-1.0")
 
-	local panel = LAM:CreateControlPanel("IRYSettingsPanel", "I Remember You")
-	LAM:AddHeader(panel, "IRYSettingsHeader", "Add players form:")
+	local panel = LAM:CreateControlPanel("IRYSettingsPanel", IRY_STRING_SETTINGS_TITLE)
 
-	LAM:AddCheckbox(panel, "IRYSettingsCollectGroup", "Group", "Enables/Disables adding players from groups",
+	LAM:AddHeader(panel, "IRYSettingsLanguageHeader", IRY_STRING_SETTINGS_LANGUAGE_HEADER)
+
+	LAM:AddDropdown(panel," IRYSettingsLanguageDropdown", IRY_STRING_SETTINGS_LANGUAGE, IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP, languages,
+                 function() return IRY.settings.language end, function(lang) return IRY:ChangeLanguage(lang) end , true, IRY_STRING_SETTINGS_LANGUAGE_WARNING)
+
+	LAM:AddHeader(panel, "IRYSettingsHeader", IRY_STRING_SETTINGS_COLLECTINFO_HEADER)
+
+	LAM:AddCheckbox(panel, "IRYSettingsCollectGroup", IRY_STRING_SETTINGS_CHECKBOX_1, IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP,
 					function() return self:IsGroupCollectEnabled() end,		--getFunc
 
 					function() 	IRY.settings.groupCollect = not IRY.settings.groupCollect
 								return self:SetGroupCollectState() end		--setFunc 
 				    )
 
-	LAM:AddCheckbox(panel, "IRYSettingsCollectTarget", "Target", "Enables/Disables adding players from your current target",
+	LAM:AddCheckbox(panel, "IRYSettingsCollectTarget", IRY_STRING_SETTINGS_CHECKBOX_2, IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP,
 					function() return self:IsTargetCollectEnabled() end,	--getFunc
 
 					function() 	IRY.settings.targetCollect = not IRY.settings.targetCollect
 								return self:SetTargetCollectState() end,		--setFunc 
 					true,													-- warning
-					"This option can seriously increase number of players in your IRY book"
+					IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC
 				    )
 end
 
@@ -288,12 +354,8 @@ end
 function IRY:SetTargetCollectState()
 	if IRY.settings.targetCollect then 
 		debug("Registering Target events")
-		-- Target changed
-		EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED, AddReticle)
 	else
 		debug("Unregistering Target events")
-		-- someone (except me) joined
-		EVENT_MANAGER:UnregisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED)
 	end
 end
 
@@ -304,7 +366,7 @@ function IRY.commandHandler(text)
 	if string.match(text,"^add ") then
 		local first,last=string.find(text,'%".+%"')
 
-		if (not first) or (not last) then d("Wrong player name format") return end
+		if (not first) or (not last) then d(IRY_STRING_ERROR_ADD_FORMAT) return end
 
 		local name = string.sub(text, first+1, last-1)
 
@@ -321,10 +383,9 @@ function IRY.commandHandler(text)
 	elseif text=="" then
 		IRY:SetHideState(not IRY.hidden)
 	else 
-		d("==IRY commands: ==")
-		d("/iry - display/hide IRY book")
-		d('/iry add "Name" - add player')
-		d("/iry cls - clear all data")
+		for i=1,#IRY_TABLE_COMMANDS do
+			d(IRY_TABLE_COMMANDS[i])
+		end
 	end
 end
 
@@ -338,6 +399,8 @@ end
 
 -- get info about target
 function IRY:GetPlayerInfo(unitTag)
+	debug("IRY:GetPlayerInfo called")
+
 	local unitType = GetUnitType(unitTag)
 	local name = GetUnitName(unitTag)
 
@@ -354,6 +417,7 @@ end
 
 -- add player to database
 function IRY:AddPlayer(alliance,name,level,vetrank)
+	debug("IRY:AddPlayer called")
 
 	local playerid=false
 	local saved_rate
@@ -410,6 +474,7 @@ end
 
 -- Allows playername or table[id]
 function IRY:RemovePlayer(...)
+	debug("IRY:RemovePlayer called")
 	local arg={...}
 	local removed=false
 	if #arg>1 then
@@ -449,6 +514,7 @@ end
 
 -- Allows playername or id, rate
 function IRY:RatePlayer(id,rate)
+	debug("IRY:RatePlayer called")
 	local rated=false
 
 	if type(id)=="number" and type(rate)=="number" then
@@ -467,6 +533,7 @@ end
 
 -- Shows comment window
 function IRY:ShowCommentWindow(id)
+	debug("IRY:ShowCommentWindow called")
 	IRY_Comment:SetHidden(false)
 	IRY_Book:SetHidden(true)
 
@@ -481,6 +548,7 @@ end
 
 -- Save note about player
 function IRY:SaveComment(self)
+	debug("IRY:SaveComment called")
 	-- 2nd parent
 	local parent=self:GetParent()
 	parent=parent:GetParent()
@@ -503,6 +571,8 @@ end
 
 -- Switch page. Form 1
 function IRY:SwitchPage(pagen)
+	debug("IRY:SwitchPage called")
+
 	local maxpages=math.ceil(#self.playerDatabase.data/36)
 	if maxpages<=0 then maxpages=1 end
 
@@ -618,6 +688,7 @@ function IRY:FillRow(RowID,PlayerId)
 		debug ("No Rate for id: "..PlayerId)
 	end
 
+	-- debug("Setting PlayerId: "..PlayerId.."for RowID: "..RowID)
 	self.rows[RowID].id=PlayerId
 
 -- Apply comment state
@@ -632,6 +703,7 @@ end
 -- XML function
 -- Apply star to row clicked
 function IRY:ApplyStar(self)
+	debug("IRY:ApplyStar called")
 	local id=(self:GetParent()).id
 	local rate=self.starnumber
 
@@ -647,6 +719,7 @@ end
 -- XML function
 -- Enter comment to player
 function IRY:SetComment(self)
+	debug("IRY:SetComment called")
 	local parent=self:GetParent()
 	local id=parent.id
 
@@ -661,8 +734,7 @@ end
 -- LBM - drop rate
 -- RMB - remove player from db
 function IRY:DropRate(self, button)
-
-	debug("Button clicked: "..button)
+	debug("IRY:DropRate called")
 
 	local parent = self:GetParent()
 	local id=parent.id
@@ -681,7 +753,7 @@ end
 -- XML function
 -- Capture click on next/previous page
 function IRY:SwitchPageClick(self, button)
-	debug("Button clicked: "..button)
+	debug("IRY:SwitchPageClick called")
 
 	local name=self:GetName()
 
@@ -695,6 +767,8 @@ end
 -- XML function
 -- Highlight Stars OnMouseEnter
 function IRY:HighhlightStars(self)
+	-- debug("IRY:HighhlightStars called")
+
 	local parent=self:GetParent()
 
 	for i=1,self.starnumber do
@@ -709,6 +783,7 @@ end
 -- XML function
 -- Apply current star value to this row
 function IRY:ApplyRealStars(self)
+	-- debug("IRY:ApplyRealStars called")
 	local parent=self:GetParent()
 	local currentstars=IRY.playerDatabase.data[parent.id].rate
 
@@ -729,10 +804,10 @@ function IRY:ApplyRealStars(self)
  end
 
  function IRY:ApplyCommentRealState(self)
+ 	debug("IRY:ApplyCommentRealState called")
  	local parent=self:GetParent()
  	local id=parent.id
 
- 	debug("ApplyCommentRealState")
  	debug("self: "..self:GetName())
  	debug("parent: "..parent:GetName())
 
@@ -747,24 +822,32 @@ function IRY:ApplyRealStars(self)
  -- Search for intut text in db
  -- SearchDatabase stores only player ID from playerDatabase.
  function IRY:SearchPlayer(text)
+ 	debug("IRY:SearchPlayer called. Text: "..text)
+
  	-- do not search if player missed focus
- 	if text=="Player Name" or text=="" then
+ 	if text==IRY_STRING_SEARCH_DEFAULT then
  		self.searching=false
  		IRY:HidePrevNextButtons()
- 		IRY:SwitchPage(1)
+ 		-- IRY:SwitchPage(1)
 
 		IRY_BookCounterLeftPage:SetHidden(false)
 		IRY_BookCounterRightPage:SetHidden(false)
 		IRY_BookCounterTotal:SetHidden(false)
+		debug("nil or default")
  		return
- 	else
- 		IRY:HidePrevNextButtons()
  	end
+
+ 	if text=="" then
+ 		IRY:SwitchPage(1)
+ 		return
+ 	end
+
+ 	IRY:HidePrevNextButtons()
 
  	self.searching=true
  	self.searchDatabase={}
 	for k,v in pairs(IRY.playerDatabase.data) do
-		debug("Search for: "..text.." in "..v.name)
+		-- debug("Search for: "..text.." in "..v.name)
 		local searchresult,_=string.find(string.lower(v.name),string.lower(text),0,true)
 		if searchresult ~=nil then
 			self.searchDatabase[#self.searchDatabase+1]=k
@@ -786,6 +869,8 @@ function IRY:ApplyRealStars(self)
 
  -- Hide Next/prev button if search is in progress
 function IRY:HidePrevNextButtons()
+	debug("IRY:HidePrevNextButtons called")
+
 	local maxpages=math.ceil(#self.playerDatabase.data/36)
 	if maxpages<=0 then maxpages=1 end
 
@@ -810,13 +895,141 @@ function IRY:HidePrevNextButtons()
 	end
 end
 
+function IRY:ChangeLanguage(lang)
+	debug("IRY:ChangeLanguage called")
+	if lang~="EN" and lang ~="GR" then d("Sorry, "..lang.." is not supported yet") return false end
+
+	self.settings.language=lang
+	ReloadUI()
+end
+
+function IRY:ApplyLanguage(lang)
+	debug("IRY:ApplyLanguage called: "..lang)
+
+	if lang=="EN" then
+		-- XML Book
+		IRY_STRING_BOOK_TITLE="I Remember You"
+		IRY_STRING_BOOK_SEARCH="Search"
+		IRY_STRING_SEARCH_DEFAULT="Player name"
+
+		-- Settings
+		IRY_STRING_SETTINGS_TITLE="I Remember You"
+		IRY_STRING_SETTINGS_LANGUAGE_HEADER="Language"
+		IRY_STRING_SETTINGS_LANGUAGE="Select language:"
+		IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP="Select language, you want this addon to work at"
+		IRY_STRING_SETTINGS_LANGUAGE_WARNING="UI will be reloaded"
+		IRY_STRING_SETTINGS_COLLECTINFO_HEADER="Add players form:"
+		IRY_STRING_SETTINGS_CHECKBOX_1="Group"
+		IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP="Enables/Disables adding players from groups"
+		IRY_STRING_SETTINGS_CHECKBOX_2="Target"
+		IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP="Enables/Disables adding players from your current target"
+		IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC="This option can seriously increase number of players in your IRY book"
+
+		-- Controls
+		IRY_STRING_CONTROLS_DESCR="Show/Hide IRY book"
+
+		-- Other
+		IRY_STRING_ERROR_ADD_FORMAT="Wrong player name format"
+		IRY_STRING_CHAT_MENU="Rate"
+
+		IRY_TABLE_COMMANDS={
+				"==IRY commands: ==",
+				"/iry - display/hide IRY book",
+				'/iry add "Name" - add player',
+				"/iry cls - clear all data"
+			}
+	elseif lang=="GR" then
+		-- XML Book
+		IRY_STRING_BOOK_TITLE="I Remember You"
+		IRY_STRING_BOOK_SEARCH="Suche"
+		IRY_STRING_SEARCH_DEFAULT="Spieler Name"
+
+		-- Settings
+		IRY_STRING_SETTINGS_TITLE="I Remember You"
+		IRY_STRING_SETTINGS_LANGUAGE_HEADER="Sprache"
+		IRY_STRING_SETTINGS_LANGUAGE="Sprache auswählen:"
+		IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP="Wähle die Sprache für dieses Addon aus"
+		IRY_STRING_SETTINGS_LANGUAGE_WARNING="UI wird neu geladen"
+		IRY_STRING_SETTINGS_COLLECTINFO_HEADER="Spieler hinzufügen über:"
+		IRY_STRING_SETTINGS_CHECKBOX_1="Gruppen"
+		IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP="Aktiviert/Deaktiviert das Hinzufügen von Spieler aus Gruppen"
+		IRY_STRING_SETTINGS_CHECKBOX_2="Ziel"
+		IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP="Aktiviert/Deaktiviert das Hinzufügen des aktuellen Zieles"
+		IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC="Wird diese Option aktiviert kann die Anzahl der Einträge in deinem IRY Buch signifikant ansteigen"
+
+		-- Controls
+		IRY_STRING_CONTROLS_DESCR="IRY Buch anzeigen/verbergen"
+
+		-- Other
+		IRY_STRING_ERROR_ADD_FORMAT="Falsches Spieler Name Format"
+		IRY_STRING_CHAT_MENU="Bewerten"
+
+		IRY_TABLE_COMMANDS={
+				"==IRY commands: ==",
+				"/iry - IRY book anzeigen/verbergen",
+				'/iry add "Name" - Spieler hinzufügen',
+				"/iry cls - Alle Daten löschen"
+			}
+	else
+		debug("Wrong language. Returning to defaults")
+		IRY:ChangeLanguage("EN")
+	end
+
+	IRY_BookAddonTitle:SetText(IRY_STRING_BOOK_TITLE)
+	IRY_BookSearchTitle:SetText(IRY_STRING_BOOK_SEARCH)
+	IRY_BookSearchEdit:SetText(IRY_STRING_SEARCH_DEFAULT)
+	ZO_CreateStringId("SI_BINDING_NAME_SHOWHIDE_BOOK", IRY_STRING_CONTROLS_DESCR)
+end
+
+function IRY_Update(self)
+
+
+	-- Add stars to other's UI
+	if IRY.starsShowed then return end
+
+	-- FTC
+	if FTC~=nil then 
+		if FTC.vars~=nil then
+			if FTC.vars.EnableFrames then
+				debug("Adding stars to FTC UI")
+				local function Action()
+					IRY_TargetRate:SetHidden(FTC_TargetFrame:IsHidden())
+				end
+
+				IRY_TargetRate:ClearAnchors()
+				IRY_TargetRate:SetAnchor(RIGHT,FTC_TargetFrame_Title,RIGHT,-10,0)
+				FTC_TargetFrame:SetHandler("OnShow",Action)
+				FTC_TargetFrame:SetHandler("OnHide",Action)
+
+				IRY.starsShowed=true
+			end
+		end
+	else
+		-- standart UI frame
+		if ZO_TargetUnitFramereticleover then
+			debug("Adding stars to standart UI")
+			local function Action()
+				IRY_TargetRate:SetHidden(ZO_TargetUnitFramereticleover:IsHidden())
+				IRY_TargetRate:SetAlpha(ZO_TargetUnitFramereticleover:GetAlpha())
+			end
+
+			IRY_TargetRate:ClearAnchors()
+			IRY_TargetRate:SetAnchor(CENTER,ZO_TargetUnitFramereticleover,CENTER,0,0)
+			ZO_TargetUnitFramereticleover:SetHandler("OnShow",Action)
+			ZO_TargetUnitFramereticleover:SetHandler("OnHide",Action)
+			ZO_TargetUnitFramereticleover:SetHandler("OnUpdate",Action)
+
+			IRY.starsShowed=true
+		end
+	end
+end
 
 
 -- Register Events
 
 -- Addon loaded
 EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_ADD_ON_LOADED, IRY_OnLoad)
-EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED, HookChatLink)
+EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_PLAYER_ACTIVATED, GameHooks)
+EVENT_MANAGER:RegisterForEvent("IRememberYou", EVENT_RETICLE_TARGET_CHANGED, OnReticleChanged)
 
--- Text for bindings.XML
-ZO_CreateStringId("SI_BINDING_NAME_SHOWHIDE_BOOK", "Show/Hide IRY book")
+-- Bindings.XML
