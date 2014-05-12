@@ -4,8 +4,8 @@
 -- Initialize object
 IRY=ZO_Object:Subclass()
 
-local IRY_debug=false
-local version=0.4
+local IRY_debug=true
+local version=0.41
 
 -- Util functions
 -- debug
@@ -79,6 +79,7 @@ local function HookChatLinkClicked(self,linkData, linkText, button, ...)
 	function AddPlayerFromMenu()
 		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
 
+		IRY_BookSearchEdit:SetText(name)
 		IRY:SearchPlayer(name)
 		IRY:SetHideState(false)
 	end
@@ -117,10 +118,7 @@ end
 function IRY:Initialize(self)
 	debug("Initialize called")
 	self.control=self
-	self.rows={
-		left={},
-		right={}
-	}
+	self.rows={}
 
 -- Create rows
 	-- left page
@@ -131,7 +129,7 @@ function IRY:Initialize(self)
 		-- stars
 		for j=1,5 do
 			self.rows[i].stars[j] = CreateControlFromVirtual(("IRY_BookRow"..i.."Star"), self.rows[i], "IRY_Star_Virtual",j)
-			self.rows[i].stars[j]:SetAnchor(LEFT,self.rows[i],LEFT,250-30+(30*j),0)
+			self.rows[i].stars[j]:SetAnchor(LEFT,self.rows[i],LEFT,240-30+(30*j),0)
 			self.rows[i].stars[j].starnumber=j
 		end
 	end
@@ -144,7 +142,7 @@ function IRY:Initialize(self)
 		-- stars
 		for j=1,5 do
 			self.rows[i].stars[j] = CreateControlFromVirtual(("IRY_BookRow"..i.."Star"), self.rows[i], "IRY_Star_Virtual",j)
-			self.rows[i].stars[j]:SetAnchor(LEFT,self.rows[i],LEFT,250-30+(30*j),0)
+			self.rows[i].stars[j]:SetAnchor(LEFT,self.rows[i],LEFT,240-30+(30*j),0)
 			self.rows[i].stars[j].starnumber=j
 		end
 	end
@@ -163,10 +161,6 @@ function IRY:Initialize(self)
 	self:SetGroupCollectState()
 	self:SetTargetCollectState()
 
-	--check if DB is not empty
-	if #self.playerDatabase.data~=0 then
-		IRY:SwitchPage(1)
-	end
 
 	-- search in progress
 	IRY.searching=false
@@ -174,6 +168,7 @@ function IRY:Initialize(self)
 	-- Current show state:
 	IRY.hidden=true
 
+	IRY:SwitchPage(1)
 end
 
 -- Load vars
@@ -222,24 +217,27 @@ function IRY:CreateScene()
 	if not IRY_SCENE then
 
 		IRY_BOOK_FRAGMENT = ZO_FadeSceneFragment:New(IRY_Book)
+		IRY_COMMENT_FRAGMENT = ZO_FadeSceneFragment:New(IRY_Comment)
 
 		IRY_SCENE = ZO_Scene:New("iry", SCENE_MANAGER)
 		IRY_SCENE:AddFragment(FRAME_PLAYER_FRAGMENT)
 		IRY_SCENE:AddFragment(FRAME_EMOTE_FRAGMENT_JOURNAL)
 		IRY_SCENE:AddFragment(IRY_BOOK_FRAGMENT)
+		IRY_SCENE:AddFragment(IRY_COMMENT_FRAGMENT)
 
 		-- .dat unpacked only from 1.0. Looks like sth changed since then, using treasure map sound
-
 		IRY_SCENE:AddFragment(TREASURE_MAP_SOUNDS)
 	end
 end
 
 function IRY:ShowScene()
 	SCENE_MANAGER:Show("iry")
+	IRY_Comment:SetHidden(true)
 end
 
 function IRY:HideScene()
 	SCENE_MANAGER:Hide("iry")
+	IRY_Comment:SetHidden(true)
 end
 
 function IRY:SetHideState(state)
@@ -310,10 +308,9 @@ function IRY.commandHandler(text)
 
 		local name = string.sub(text, first+1, last-1)
 
-
 		debug("Name from add: "..name)
 		IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
-		IRY:SearchPlayer(name)
+
 		IRY:SetHideState(false)
 	end
 
@@ -373,12 +370,14 @@ function IRY:AddPlayer(alliance,name,level,vetrank)
 	if playerid then
 		-- if this player is already at our DB -> update info
 		saved_rate=self.playerDatabase.data[playerid].rate
+		saved_comment=self.playerDatabase.data[playerid].comment
 		self.playerDatabase.data[playerid]={
 			["name"]=name,
 			["alliance"]=alliance,
 			["level"]=level,
 			["vetrank"]=vetrank,
-			["rate"]=saved_rate
+			["rate"]=saved_rate,
+			["comment"]=saved_comment
 		}
 	else
 		-- if there's no such player -> add player data
@@ -387,12 +386,15 @@ function IRY:AddPlayer(alliance,name,level,vetrank)
 			["alliance"]=alliance,
 			["level"]=level,
 			["vetrank"]=vetrank,
-			["rate"]=-1
+			["rate"]=-1,
+			["comment"]=""
 		}
 	end
 
 	-- sort table by name
-	table.sort(self.playerDatabase.data, compareByName)
+	if #self.playerDatabase.data>1 then
+		table.sort(self.playerDatabase.data, compareByName)
+	end
 
 	IRY:SwitchPage(IRY_Book.currentpage)
 
@@ -420,7 +422,6 @@ function IRY:RemovePlayer(...)
 		for k,v in pairs(self.playerDatabase.data) do
 			if k==id then
 				debug ("Player "..v.name.." with ID "..k.." was removed from db")
-				-- self.playerDatabase.data[k]=nil
 				table.remove (self.playerDatabase.data,k)
 				removed = true
 			end
@@ -430,16 +431,18 @@ function IRY:RemovePlayer(...)
 		for k,v in pairs(self.playerDatabase.data) do
 			if v.name==name then
 				debug ("Player "..v.name.." with ID "..k.." was removed from db")
-				-- self.playerDatabase.data[k]=nil
 				table.remove (self.playerDatabase.data,k)
 				removed = true
 			end
 		end
 	else
 		debug("Wrong RemovePlayer attribute type")
+		return
 	end
 
-	IRY:SwitchPage(IRY_Book.currentpage)
+	if not removed then
+		debug("Something went wrong while removing player "..tostring(arg[1]))
+	end
 
 	return removed
 end
@@ -462,9 +465,46 @@ function IRY:RatePlayer(id,rate)
 	end
 end
 
+-- Shows comment window
+function IRY:ShowCommentWindow(id)
+	IRY_Comment:SetHidden(false)
+	IRY_Book:SetHidden(true)
+
+	IRY_Comment.id=id
+
+	local name=self.playerDatabase.data[id].name
+	local comment=self.playerDatabase.data[id].comment
+	IRY_CommentTitle:SetText(name)
+	IRY_CommentTextEdit:SetText(comment)
+
+end
+
+-- Save note about player
+function IRY:SaveComment(self)
+	-- 2nd parent
+	local parent=self:GetParent()
+	parent=parent:GetParent()
+
+	local id=parent.id
+	local comment=self:GetText()
+
+	debug("SaveComment=>")
+	debug("self: "..tostring(self:GetName()))
+	debug("2nd parent: "..tostring(parent:GetName()))
+	debug("id: "..tostring(id))
+	debug("comment: "..tostring(comment))
+
+	IRY.playerDatabase.data[id].comment=comment
+
+	IRY_Comment:SetHidden(true)
+	IRY_Book:SetHidden(false)
+
+end
+
 -- Switch page. Form 1
 function IRY:SwitchPage(pagen)
 	local maxpages=math.ceil(#self.playerDatabase.data/36)
+	if maxpages<=0 then maxpages=1 end
 
 	self.searching=false
 	IRY:HidePrevNextButtons()
@@ -486,7 +526,7 @@ function IRY:SwitchPage(pagen)
 	debug("pagen: "..pagen)
 	debug("maxpages: "..maxpages)
 
-	if pagen<1 or pagen>maxpages then return end
+	if pagen<1 or pagen>maxpages then return debug("pagen<1 or pagen>maxpages") end
 
 	IRY_Book.currentpage=pagen
 
@@ -496,21 +536,29 @@ function IRY:SwitchPage(pagen)
 		IRY:FillRow(i,i+(pagen*36))
 	end
 
+	if #self.playerDatabase.data==0 then
+		for i=1,36 do
+			self.rows[i]:SetHidden(true)
+			IRY_BookCounterLeftPage:SetText(0)
+		end
+	end
+
+
 	-- Modify counters
 	for i=1,18 do
 		if not self.rows[i]:IsHidden() then
-			IRY_BookCounterLeftPage:SetText(i+36*(IRY_Book.currentpage-1 or 1))
+			IRY_BookCounterLeftPage:SetText(i+36*(IRY_Book.currentpage-1))
 		end
 	end
 
 	local allrowshidden=true
 	for i=19,36 do
-		-- debug("Row "..i.."is hidden: "..tostring(self.rows[i]:IsHidden()))
 		if not self.rows[i]:IsHidden() then
-			IRY_BookCounterRightPage:SetText(i+36*(IRY_Book.currentpage-1 or 1))
+			IRY_BookCounterRightPage:SetText(i+36*(IRY_Book.currentpage-1))
 			allrowshidden=false
 		end
 	end
+
 
 	-- hide right counter if all rows are hidden
 	if allrowshidden then
@@ -518,7 +566,6 @@ function IRY:SwitchPage(pagen)
 	else
 		IRY_BookCounterRightPage:SetHidden(false)
 	end
-
 
 	IRY_BookCounterTotal:SetText(#self.playerDatabase.data)
 end
@@ -560,11 +607,11 @@ function IRY:FillRow(RowID,PlayerId)
 		local rate=self.playerDatabase.data[PlayerId].rate
 		if rate~=-1 then
 			for i=1,rate do
-				_G[basename].stars[i]:SetColor(0,1,0,1)
+				_G[basename].stars[i]:SetColor(1,1,0,1)
 			end
 		else
 			for i=1,5 do
-				_G[basename].stars[i]:SetColor(1,0,0,1)
+				_G[basename].stars[i]:SetColor(1,0,0,0.5)
 			end
 		end
 	else
@@ -572,6 +619,13 @@ function IRY:FillRow(RowID,PlayerId)
 	end
 
 	self.rows[RowID].id=PlayerId
+
+-- Apply comment state
+ 	if IRY.playerDatabase.data[PlayerId].comment~="" then
+ 		_G[basename.."SetComment"]:SetColor(0,1,0,1)
+ 	else
+ 		_G[basename.."SetComment"]:SetColor(1,1,1,1)
+ 	end
 
 end
 
@@ -590,23 +644,38 @@ function IRY:ApplyStar(self)
 	IRY:SwitchPage(IRY_Book.currentpage)
 end
 
+-- XML function
+-- Enter comment to player
+function IRY:SetComment(self)
+	local parent=self:GetParent()
+	local id=parent.id
+
+	debug("Set Comment for id: "..id)
+	IRY:ShowCommentWindow(id)
+
+	-- Update book
+	IRY:SwitchPage(IRY_Book.currentpage)
+end
+
+-- XML function
 -- LBM - drop rate
 -- RMB - remove player from db
 function IRY:DropRate(self, button)
 
 	debug("Button clicked: "..button)
 
-	local id=(self:GetParent()).id
+	local parent = self:GetParent()
+	local id=parent.id
 
 	if button==1 then
 		IRY:RatePlayer(id,-1)
+		IRY:ApplyRealStars(self)
 	elseif button==2 then
 		IRY:RemovePlayer(id)
 	end
 
 	-- Update book
 	IRY:SwitchPage(IRY_Book.currentpage)
-	IRY:ApplyRealStars(self)
 end
 
 -- XML function
@@ -629,11 +698,11 @@ function IRY:HighhlightStars(self)
 	local parent=self:GetParent()
 
 	for i=1,self.starnumber do
-		parent.stars[i]:SetColor(1,1,0,1)
+		parent.stars[i]:SetColor(0,1,0,1)
 	end
 
 	for i=self.starnumber+1,1 do
-		parent.stars[i]:SetColor(1,0,0,1)
+		parent.stars[i]:SetColor(1,0,0,0.5)
 	end
 end
 
@@ -647,16 +716,31 @@ function IRY:ApplyRealStars(self)
 
 	if currentstars>=1 and currentstars<=5 then
 		for i=1,currentstars do
-			parent.stars[i]:SetColor(0,1,0,1)
+			parent.stars[i]:SetColor(1,1,0,1)
 		end
 		for i=currentstars+1,5 do
-			parent.stars[i]:SetColor(1,0,0,1)
+			parent.stars[i]:SetColor(1,0,0,0.5)
 		end
 	else
 		for i=1,5 do
-			parent.stars[i]:SetColor(1,0,0,1)
+			parent.stars[i]:SetColor(1,0,0,0.5)
 		end
 	end
+ end
+
+ function IRY:ApplyCommentRealState(self)
+ 	local parent=self:GetParent()
+ 	local id=parent.id
+
+ 	debug("ApplyCommentRealState")
+ 	debug("self: "..self:GetName())
+ 	debug("parent: "..parent:GetName())
+
+ 	if IRY.playerDatabase.data[id].comment~="" then
+ 		self:SetColor(0,1,0,1)
+ 	else
+ 		self:SetColor(1,1,1,1)
+ 	end
  end
 
  -- XML function 
@@ -668,12 +752,16 @@ function IRY:ApplyRealStars(self)
  		self.searching=false
  		IRY:HidePrevNextButtons()
  		IRY:SwitchPage(1)
+
+		IRY_BookCounterLeftPage:SetHidden(false)
+		IRY_BookCounterRightPage:SetHidden(false)
+		IRY_BookCounterTotal:SetHidden(false)
  		return
  	else
- 		self.searching=true
  		IRY:HidePrevNextButtons()
  	end
 
+ 	self.searching=true
  	self.searchDatabase={}
 	for k,v in pairs(IRY.playerDatabase.data) do
 		debug("Search for: "..text.." in "..v.name)
@@ -690,23 +778,30 @@ function IRY:ApplyRealStars(self)
 	for i=#self.searchDatabase+1,36 do
 		self.rows[i]:SetHidden(true)
 	end
+
+	IRY_BookCounterLeftPage:SetHidden(true)
+	IRY_BookCounterRightPage:SetHidden(true)
+	IRY_BookCounterTotal:SetHidden(true)
  end
 
  -- Hide Next/prev button if search is in progress
 function IRY:HidePrevNextButtons()
 	local maxpages=math.ceil(#self.playerDatabase.data/36)
+	if maxpages<=0 then maxpages=1 end
 
 	debug("self.searching: "..tostring(self.searching))
 
-	if maxpages==0 then return end
+	if maxpages==1 then return end
 
 	if self.searching then
+		debug("HidePrevNextButtons: hiding all")
 		IRY_BookCounterLeftPage:SetHidden(true)
 		IRY_BookCounterRightPage:SetHidden(true)
 		IRY_BookCounterTotal:SetHidden(true)
 		IRY_BookKeyStripMouseButtonsPreviousPage:SetHidden(true)
 		IRY_BookKeyStripMouseButtonsNextPage:SetHidden(true)
 	else
+		debug("HidePrevNextButtons: showing all")
 		IRY_BookCounterLeftPage:SetHidden(false)
 		IRY_BookCounterRightPage:SetHidden(false)
 		IRY_BookCounterTotal:SetHidden(false)

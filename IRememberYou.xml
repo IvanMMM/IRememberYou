@@ -5,7 +5,7 @@
 				<!-- IRY:Update(self) -->
 			</OnUpdate>
 			<Controls>
-				<Control name="IRY_Book" mouseEnabled="true" hidden="true" movable="true">
+				<Control name="IRY_Book" mouseEnabled="true" hidden="true" movable="false">
 					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
 					<Dimensions x="1024" y="1024" />
 					<OnShow>
@@ -25,20 +25,20 @@
 						<Label name="$(parent)Counter" font="ZoFontGame" color="000000">
 							<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="0" offsetY="-190"/>
 							<Controls>
-								<Label name="$(parent)LeftPage" font="ZoFontGame" text="18" color="000000">
+								<Label name="$(parent)LeftPage" font="ZoFontGame" text="0" color="000000">
 									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="-200" offsetY="0"/>
 								</Label>
-								<Label name="$(parent)RightPage" font="ZoFontGame" text="36" color="000000">
+								<Label name="$(parent)RightPage" font="ZoFontGame" text="" color="000000">
 									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="240" offsetY="0"/>
 								</Label>
-								<Label name="$(parent)Total" font="ZoFontGame" text="999" color="000000">
+								<Label name="$(parent)Total" font="ZoFontGame" text="0" color="000000">
 									<Anchor point="CENTER" relativePoint="BOTTOM" offsetX="440" offsetY="10"/>
 								</Label>
 							</Controls>
 						</Label>
 						<Control name="$(parent)Search">
 							<Dimensions x="300" y="30" />
-								<Anchor point="LEFT" relativePoint="CENTER" offsetX="120" offsetY="-340"/>
+							<Anchor point="LEFT" relativePoint="CENTER" offsetX="120" offsetY="-340"/>
 							<Controls>
 
 								<Label name="$(parent)Title" font="ZoFontBookPaperTitle" text="Search" color="000000">
@@ -98,6 +98,53 @@
 
 					</Controls>
 				</Control>
+
+				<Control name="IRY_Comment" hidden="true" keyboardEnabled="true">
+					<Dimensions x="500" y="300" />
+					<Anchor point="CENTER" relativePoint="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
+					<OnKeyUp>
+						if key==12 or key==1 then
+							self:SetHidden(true)
+							IRY_Book:SetHidden(false)
+						end
+					</OnKeyUp>
+					<Controls>
+						<Texture name="$(parent)Bg" textureFile="/esoui/art/lorelibrary/lorelibrary_note.dds">
+							<AnchorFill />
+						</Texture>
+						<Label name="$(parent)Title" text="" font="ZoFontBookPaperTitle" color="000000">
+							<Anchor point="CENTER" relativePoint="TOP" offsetX="0" offsetY="40"/>
+						</Label>
+
+						<Control name="$(parent)Text">
+							<Dimensions x="300" y="190" />
+							<Anchor point="CENTER" relativePoint="CENTER" offsetX="0" offsetY="0"/>
+							<Controls>
+								<EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop ZO_EditDefaultText" text="Player Name">
+									<OnInitialized>
+										self:SetMaxInputChars(189)
+										self:SetFont("ZoFontBookPaper")
+										self:SetColor(0,0,0,1)
+									</OnInitialized>
+						            <OnEscape>
+						                self:LoseFocus()
+						                IRY:SaveComment(self)
+						                IRY:SwitchPage(IRY_Book.currentpage)
+						            </OnEscape>
+						            <OnHide>
+						            	self:SetText("")
+						            </OnHide>
+									<Controls>
+										<Backdrop name="$(parent)BackDrop" centerColor="FFFFFF" edgeColor="00000000" alpha="0">
+											<AnchorFill/>
+										</Backdrop>
+									</Controls>
+								</EditBox>
+							</Controls>
+						</Control>
+					</Controls>
+				</Control>
+
 			</Controls>
 		</TopLevelControl>
 
@@ -108,11 +155,11 @@
 				<!-- <Anchor point="RIGHT" relativePoint="CENTER" relativeTo="IRY_Book" offsetX="0" offsetY="-300"/> -->
 				<Dimensions x="420" y="30" />
 				<Controls>
-					<Backdrop name="$(parent)BackDrop" centerColor="000000" edgeColor="00000000" alpha="0.5">
+					<Backdrop name="$(parent)BackDrop" centerColor="000000" edgeColor="00000000" alpha="0.15">
 						<AnchorFill/>
 					</Backdrop>
 
-					<Label name="$(parent)Name" font="ZoFontBookPaper" text="Name" color="FFFFFF">
+					<Label name="$(parent)Name" font="ZoFontBookPaper" text="Name" color="000000">
 						<Anchor point="LEFT" relativePoint="LEFT" offsetX="70" offsetY="0"/>
 					</Label>
 
@@ -136,11 +183,27 @@
 						</OnMouseExit>
 					</Texture>
 
+					<Texture name="$(parent)SetComment" textureFile="/esoui/art/buttons/edit_up.dds" mouseEnabled="true">
+						<Dimensions x="32" y="32"/>
+						<Anchor point="RIGHT" relativePoint="RIGHT" offsetX="0" offsetY="0"/>
+						<OnMouseUp>
+							IRY:SetComment(self)
+						</OnMouseUp>
+
+						<OnMouseEnter>
+							self:SetTexture("/esoui/art/buttons/edit_over.dds")
+						</OnMouseEnter>
+						<OnMouseExit>
+							self:SetTexture("/esoui/art/buttons/edit_up.dds")
+							IRY:ApplyCommentRealState(self)
+						</OnMouseExit>
+					</Texture>
+
 				</Controls>
 			</Control>
 
-			<!-- Virtual "+" -->
-			<Texture name="IRY_Star_Virtual" textureFile="esoui/art/buttons/pointsplus_up.dds" mouseEnabled="true" color="FF0000" virtual="true">
+			<!-- Virtual star -->
+			<Texture name="IRY_Star_Virtual" textureFile="/IRememberYou/textures/star.dds" mouseEnabled="true" color="FF0000" virtual="true" alpha="0.5">
 				<Dimensions x="32" y="32"/>
 				<!-- <Anchor point="LEFT" relativePoint="LEFT" offsetX="250" offsetY="0"/> -->
 				<OnMouseEnter>

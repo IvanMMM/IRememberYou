@@ -5,6 +5,7 @@
         <Down>
 
         	IRY:SetHideState(not IRY.hidden)
+        	IRY:SwitchPage(IRY_Book.currentpage)
 
         </Down>
       </Action>
