@@ -165,23 +165,23 @@
 						<Control name="$(parent)Star">
 							<AnchorFill/>
 							<Controls>
-								<Texture name="$(parent)1" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+								<Texture name="$(parent)1" textureFile="/IRememberYou/textures/star.dds" hidden="true" color="FFFF00">
 									<Dimensions x="20" y="20" />
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-40" offsetY="0"/>
 								</Texture>
-								<Texture name="$(parent)2" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+								<Texture name="$(parent)2" textureFile="/IRememberYou/textures/star.dds" hidden="true" color="FFFF00">
 									<Dimensions x="20" y="20" />
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="-20" offsetY="0"/>
 								</Texture>
-								<Texture name="$(parent)3" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+								<Texture name="$(parent)3" textureFile="/IRememberYou/textures/star.dds" hidden="true" color="FFFF00">
 									<Dimensions x="20" y="20" />
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="0" offsetY="0"/>
 								</Texture>	
-								<Texture name="$(parent)4" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+								<Texture name="$(parent)4" textureFile="/IRememberYou/textures/star.dds" hidden="true" color="FFFF00">
 									<Dimensions x="20" y="20" />
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="20" offsetY="0"/>
 								</Texture>	
-								<Texture name="$(parent)5" textureFile="/IRememberYou/textures/star.dds" hidden="true">
+								<Texture name="$(parent)5" textureFile="/IRememberYou/textures/star.dds" hidden="true" color="FFFF00">
 									<Dimensions x="20" y="20" />
 									<Anchor point="CENTER" relativePoint="CENTER" offsetX="40" offsetY="0"/>
 								</Texture>	

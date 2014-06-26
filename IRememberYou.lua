@@ -8,10 +8,9 @@ IRY=ZO_Object:Subclass()
 
 -- Translate strings
 local IRY_debug=false
-local version=0.43
+local version=0.50
 local tex_star="/IRememberYou/textures/star.dds"
 local tex_star_over="/IRememberYou/textures/star_over.dds"
-IRY_addonsLoaded={}
 
 -- Util functions
 -- debug
@@ -104,6 +103,14 @@ local function AddGroup()
 	end
 end
 
+local function AddPlayerFromMenu(name)
+	IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
+
+	IRY_BookSearchEdit:SetText(name)
+	IRY:SearchPlayer(name)
+	IRY:SetHideState(false)
+end
+
 local function ChatHookClicked(self,linkData, linkText, button, ...)
 
 	local linkType, _, _ = zo_strsplit(":", linkData)
@@ -126,19 +133,11 @@ local function ChatHookClicked(self,linkData, linkText, button, ...)
 
 	if button == 2 then
         ZO_Menu:SetHidden(true)
-        AddMenuItem(IRY_STRING_CHAT_MENU, AddPlayerFromMenu)
+        AddMenuItem(IRY_STRING_CHAT_MENU, function() AddPlayerFromMenu(name) end)
 
         ShowMenu(nil, 1)
     end
 
-end
-
-local function AddPlayerFromMenu(name)
-	IRY:AddPlayer(GetUnitAlliance("player"),name,0,0)
-
-	IRY_BookSearchEdit:SetText(name)
-	IRY:SearchPlayer(name)
-	IRY:SetHideState(false)
 end
 
 local function GameHooks()
@@ -250,32 +249,53 @@ end
 -- Display functions
 -- create settings
 function IRY:CreateSettings()
-	LAM = LibStub("LibAddonMenu-1.0")
+	local panelData = {
+		type = "panel",
+		name = IRY_STRING_SETTINGS_TITLE,
+		displayName = IRY_STRING_SETTINGS_TITLE,
+		author = "Bad Volt",
+		version = version
+	}
 
-	local panel = LAM:CreateControlPanel("IRYSettingsPanel", IRY_STRING_SETTINGS_TITLE)
+	local optionsData={
+		[1] = {
+			type = "header",
+			name = IRY_STRING_SETTINGS_LANGUAGE_HEADER
+		},
+		[2] = {
+		  	type = "dropdown",
+			name = IRY_STRING_SETTINGS_LANGUAGE,
+			tooltip = IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP,
+			choices = languages,
+			getFunc = function() return IRY.settings.language end,
+			setFunc = function(lang) return IRY:ChangeLanguage(lang) end,
+			warning = IRY_STRING_SETTINGS_LANGUAGE_WARNING
+		},
+		[3] = {
+			type = "header",
+			name = IRY_STRING_SETTINGS_COLLECTINFO_HEADER
+		},
+		[4] = {
+		  type = "checkbox",
+		  name = IRY_STRING_SETTINGS_CHECKBOX_1,
+		  tooltip = IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP,
+		  getFunc = function() return self:IsGroupCollectEnabled() end,
+		  setFunc = function() 	IRY.settings.groupCollect = not IRY.settings.groupCollect end
+		},
+		[5] = {
+		  type = "checkbox",
+		  name = IRY_STRING_SETTINGS_CHECKBOX_2,
+		  tooltip = IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP,
+		  getFunc = function() return self:IsTargetCollectEnabled() end,
+		  setFunc = function() 	IRY.settings.targetCollect = not IRY.settings.targetCollect end,
+		  warning = IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC
+		}
+	}
 
-	LAM:AddHeader(panel, "IRYSettingsLanguageHeader", IRY_STRING_SETTINGS_LANGUAGE_HEADER)
+	local LAM = LibStub("LibAddonMenu-2.0")
+	LAM:RegisterAddonPanel("IRY_Controls", panelData)
+	LAM:RegisterOptionControls("IRY_Controls", optionsData)
 
-	LAM:AddDropdown(panel," IRYSettingsLanguageDropdown", IRY_STRING_SETTINGS_LANGUAGE, IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP, languages,
-                 function() return IRY.settings.language end, function(lang) return IRY:ChangeLanguage(lang) end , true, IRY_STRING_SETTINGS_LANGUAGE_WARNING)
-
-	LAM:AddHeader(panel, "IRYSettingsHeader", IRY_STRING_SETTINGS_COLLECTINFO_HEADER)
-
-	LAM:AddCheckbox(panel, "IRYSettingsCollectGroup", IRY_STRING_SETTINGS_CHECKBOX_1, IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP,
-					function() return self:IsGroupCollectEnabled() end,		--getFunc
-
-					function() 	IRY.settings.groupCollect = not IRY.settings.groupCollect
-								return self:SetGroupCollectState() end		--setFunc 
-				    )
-
-	LAM:AddCheckbox(panel, "IRYSettingsCollectTarget", IRY_STRING_SETTINGS_CHECKBOX_2, IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP,
-					function() return self:IsTargetCollectEnabled() end,	--getFunc
-
-					function() 	IRY.settings.targetCollect = not IRY.settings.targetCollect
-								return self:SetTargetCollectState() end,		--setFunc 
-					true,													-- warning
-					IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC
-				    )
 end
 
 -- create scene
@@ -418,6 +438,9 @@ end
 -- add player to database
 function IRY:AddPlayer(alliance,name,level,vetrank)
 	debug("IRY:AddPlayer called")
+
+	-- Do not add self
+	if name==GetUnitName("player") then return end
 
 	local playerid=false
 	local saved_rate
@@ -897,7 +920,7 @@ end
 
 function IRY:ChangeLanguage(lang)
 	debug("IRY:ChangeLanguage called")
-	if lang~="EN" and lang ~="GR" then d("Sorry, "..lang.." is not supported yet") return false end
+	if lang~="EN" and lang ~="GR" and lang ~="FR" then d("Sorry, "..lang.." is not supported yet") return false end
 
 	self.settings.language=lang
 	ReloadUI()
@@ -969,6 +992,38 @@ function IRY:ApplyLanguage(lang)
 				"/iry - IRY book anzeigen/verbergen",
 				'/iry add "Name" - Spieler hinzufügen',
 				"/iry cls - Alle Daten löschen"
+			}
+	elseif lang=="FR" then
+		-- XML Book
+		IRY_STRING_BOOK_TITLE="I Remember You"
+		IRY_STRING_BOOK_SEARCH="Chercher"
+		IRY_STRING_SEARCH_DEFAULT="Nom du joueur"
+
+		-- Settings
+		IRY_STRING_SETTINGS_TITLE="I Remember You"
+		IRY_STRING_SETTINGS_LANGUAGE_HEADER="Langue"
+		IRY_STRING_SETTINGS_LANGUAGE="Choisir langue:"
+		IRY_STRING_SETTINGS_LANGUAGE_TOOLTIP="Choisissez la langue utilis\195\169e par cet addon"
+		IRY_STRING_SETTINGS_LANGUAGE_WARNING="L'interface va \195\170tre recharg\195\169e"
+		IRY_STRING_SETTINGS_COLLECTINFO_HEADER="Formulaire d'ajout de joueurs"
+		IRY_STRING_SETTINGS_CHECKBOX_1="Groupe"
+		IRY_STRING_SETTINGS_CHECKBOX_1_TOOLTIP="Activer/D\195\169sactiver l'ajout de joueurs depuis le groupe"
+		IRY_STRING_SETTINGS_CHECKBOX_2="Cible"
+		IRY_STRING_SETTINGS_CHECKBOX_2_TOOLTIP="Activer/D\195\169sactiver l'ajout de joueurs cibl\195\169s"
+		IRY_STRING_SETTINGS_CHECKBOX_2_WARNING_DESRC="Cette option peut \195\169norm\195\169ment augmenter le nombre de joueurs dans votre livre IRY"
+
+		-- Controls
+		IRY_STRING_CONTROLS_DESCR="Afficher/Cacher le livre IRY"
+
+		-- Other
+		IRY_STRING_ERROR_ADD_FORMAT="Mauvais format de nom de joueur"
+		IRY_STRING_CHAT_MENU="Noter"
+
+		IRY_TABLE_COMMANDS={
+				"==IRY commands: ==",
+				"/iry - affiche/cache le livre IRY",
+				'/iry add "Nom" - ajoute un joueur',
+				"/iry cls - efface toutes les donn\195\169es"
 			}
 	else
 		debug("Wrong language. Returning to defaults")
